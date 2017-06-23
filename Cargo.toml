@@ -1,0 +1,7 @@
+[package]
+name = "wallers"
+version = "0.1.0"
+authors = ["Brandon Milton <brandon.milton21@gmail.com>"]
+
+[dependencies]
+clap = "2.25.0"

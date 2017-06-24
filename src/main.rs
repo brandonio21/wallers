@@ -91,12 +91,12 @@ fn download_remote_url(url: &str, destination: &Path) -> std::io::Result<()> {
 }
 
 #[cfg(windows)]
-fn os_set_wallpaper(path: String) -> std::io::Result<()> {
-    let wallpaper_func = if cfg!(target_pointer_width = "64") {
-        user32::SystemParametersInfoW
+fn os_set_wallpaper(path: String, force_32bit: bool) -> std::io::Result<()> {
+    let wallpaper_func = if force_32bit || cfg!(target_pointer_width = "32") {
+        user32::SystemParametersInfoA
     }
     else {
-        user32::SystemParametersInfoA
+        user32::SystemParametersInfoW
     };
 
 
@@ -120,7 +120,7 @@ fn os_set_wallpaper(path: String) -> std::io::Result<()> {
 }
 
 #[cfg(not(windows))]
-fn os_set_wallpaper(path: String) -> std::io::Result<()> {
+fn os_set_wallpaper(path: String, force_32bit: bool) -> std::io::Result<()> {
     let result = Command::new("feh")
         .arg("--bg-fill")
         .arg(path)
@@ -132,13 +132,13 @@ fn os_set_wallpaper(path: String) -> std::io::Result<()> {
     }
 }
 
-fn set_wallpaper(path: &Path) -> std::io::Result<()> {
+fn set_wallpaper(path: &Path, force_32bit: bool) -> std::io::Result<()> {
     let path_str = match path.to_str() {
         None => return Err(Error::new(ErrorKind::Other, "Could not convert path to string..")),
         Some(path) => path.to_string()
     };
 
-    os_set_wallpaper(path_str)
+    os_set_wallpaper(path_str, force_32bit)
 }
 
 fn main() {
@@ -160,10 +160,14 @@ fn main() {
             .help("Path to directory to store downloaded images")
             .takes_value(true)
             .required(true))
+        .arg(Arg::with_name("force32bit")
+            .long("force32bit")
+            .help("Force 32-bit operation on Windows systems"))
         .get_matches();
 
     let urlfile = matches.value_of("urlfile").unwrap();
     let imagedir = Path::new(matches.value_of("imagedir").unwrap());
+    let force32bit = matches.is_present("force32bit");
 
     /* Step 1: Load all URLs from the URLs file */
     let urls = match load_urls_from_file(&urlfile) {
@@ -189,7 +193,7 @@ fn main() {
     If local image, set wallpaper to selected image 
     */
     if should_local && local_image.is_some() {
-        set_wallpaper(&imagedir.join(&local_image.unwrap()).as_path()).unwrap();
+        set_wallpaper(&imagedir.join(&local_image.unwrap()).as_path(), force32bit).unwrap();
     }
     else if remote_image.is_some() {
         let url_hash = get_url_hash(&remote_image.unwrap());
@@ -198,14 +202,14 @@ fn main() {
         if !download_dest.exists() {
             let download_result = download_remote_url(&remote_image.unwrap(), &download_dest);
             if download_result.is_err() && local_image.is_some() {
-                set_wallpaper(&imagedir.join(&local_image.unwrap()).as_path()).unwrap();
+                set_wallpaper(&imagedir.join(&local_image.unwrap()).as_path(), force32bit).unwrap();
             }
             else if download_result.is_ok() {
-                set_wallpaper(&download_dest).unwrap();
+                set_wallpaper(&download_dest, force32bit).unwrap();
             }
         }
         else {
-            set_wallpaper(&download_dest).unwrap();
+            set_wallpaper(&download_dest, force32bit).unwrap();
         }
     }
 }

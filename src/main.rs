@@ -5,6 +5,7 @@ extern crate curl;
 extern crate easy_hash;
 
 use std::io::{Read, Error, ErrorKind, Write};
+use std::fs::{create_dir, rename, read_dir};
 use std::fs::File;
 use clap::{Arg, App};
 use std::path::Path;
@@ -35,10 +36,10 @@ fn load_urls_from_file(path: &str) -> std::io::Result<Vec<String>> {
 
 fn get_filenames_in_dir(path: &Path) -> std::io::Result<Vec<String>> {
     if !path.exists() {
-        std::fs::create_dir(path)?;
+        create_dir(path)?;
     }
 
-    let filenames = match std::fs::read_dir(path) {
+    let filenames = match read_dir(path) {
         Err(why) => return Err(why),
         Ok(entry) => entry
     };
@@ -82,7 +83,7 @@ fn download_remote_url(url: &str, destination: &Path) -> std::io::Result<()> {
     easy.perform()?;
 
     /* At this time, the download is complete. Now let's move the file */
-    std::fs::rename(temp_download_url, destination)
+    rename(temp_download_url, destination)
 }
 
 fn set_wallpaper(path: &Path) -> std::io::Result<()> {

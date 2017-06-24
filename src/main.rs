@@ -14,6 +14,8 @@ use rand::{thread_rng, Rng};
 use curl::easy::Easy;
 use easy_hash::{Sha256, Hasher, HashResult};
 
+#[cfg(windows)] use std::ffi::CString;
+#[cfg(windows)] use std::os::raw::c_void;
 #[cfg(not(windows))] use std::process::Command;
 
 fn load_urls_from_file(path: &str) -> std::io::Result<Vec<String>> {
@@ -97,9 +99,18 @@ fn os_set_wallpaper(path: String) -> std::io::Result<()> {
         user32::SystemParametersInfoA
     };
 
-    let path_ptr = std::ffi::CString::new(path).unwrap();
+
+    let path_ptr = CString::new(path).unwrap();
+    let path_ptr_c = path_ptr.into_raw();
     let result = unsafe {
-        wallpaper_func(20, 0, path_ptr.into_raw() as *mut std::os::raw::c_void, 0)
+        match path_ptr_c.is_null() {
+            false => wallpaper_func(20, 0, path_ptr_c as *mut c_void, 0),
+            true => 0
+        }
+    };
+
+    unsafe {
+        CString::from_raw(path_ptr_c)
     };
 
     match result {

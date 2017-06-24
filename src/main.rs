@@ -3,6 +3,7 @@ extern crate clap;
 extern crate rand;
 extern crate curl;
 extern crate easy_hash;
+#[cfg(windows)] extern crate user32;
 
 use std::io::{Read, Error, ErrorKind, Write};
 use std::fs::{create_dir, rename, read_dir};
@@ -11,8 +12,9 @@ use clap::{Arg, App};
 use std::path::Path;
 use rand::{thread_rng, Rng};
 use curl::easy::Easy;
-use std::process::Command;
 use easy_hash::{Sha256, Hasher, HashResult};
+
+#[cfg(not(windows))] use std::process::Command;
 
 fn load_urls_from_file(path: &str) -> std::io::Result<Vec<String>> {
     /* First, we will open the path given to us */
@@ -86,43 +88,46 @@ fn download_remote_url(url: &str, destination: &Path) -> std::io::Result<()> {
     rename(temp_download_url, destination)
 }
 
+#[cfg(windows)]
+fn os_set_wallpaper(path: String) -> std::io::Result<()> {
+    let wallpaper_func = if cfg!(target_pointer_width = "64") {
+        user32::SystemParametersInfoW
+    }
+    else {
+        user32::SystemParametersInfoA
+    };
+
+    let path_ptr = std::ffi::CString::new(path).unwrap();
+    let result = unsafe {
+        wallpaper_func(20, 0, path_ptr.into_raw() as *mut std::os::raw::c_void, 0)
+    };
+
+    match result {
+        0 => Err(Error::new(ErrorKind::Other, "Failed to set Windows wallpaper")),
+        _ => Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+fn os_set_wallpaper(path: String) -> std::io::Result<()> {
+    let result = Command::new("feh")
+        .arg("--bg-fill")
+        .arg(path)
+        .status()?.success();
+
+    match result {
+        true => Ok(()),
+        false => Err(Error::new(ErrorKind::Other, "Failed to set non-Windows wallpaper"))
+    }
+}
+
 fn set_wallpaper(path: &Path) -> std::io::Result<()> {
-    let path = match path.to_str() {
+    let path_str = match path.to_str() {
         None => return Err(Error::new(ErrorKind::Other, "Could not convert path to string..")),
-        Some(path) => path
+        Some(path) => path.to_string()
     };
 
-    /* If we are on Windows, do something special. Otherwise, just use feh */
-    let result = if cfg!(target_os = "windows") {
-        Command::new("reg")
-            .arg("add")
-            .arg("\"HKEY_CURRENT_USER\\Control Panel\\Desktop\"")
-            .arg("/v")
-            .arg("Wallpaper")
-            .arg("/t")
-            .arg("REG_SZ")
-            .arg("/d")
-            .arg(path)
-            .arg("/f")
-            .status()?;
-
-        Command::new("RUNDLL32.EXE")
-            .arg("user32.dll,UpdatePerUserSystemParameters")
-            .status()?
-    }
-    else {
-        Command::new("feh")
-            .arg("--bg-fill")
-            .arg(path)
-            .status()?
-    };
-
-    if result.success() {
-        Ok(())
-    }
-    else {
-        Err(Error::new(ErrorKind::Other, "Setting wallpaper exited with unknown error"))
-    }
+    os_set_wallpaper(path_str)
 }
 
 fn main() {

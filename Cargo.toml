@@ -5,3 +5,6 @@ authors = ["Brandon Milton <brandon.milton21@gmail.com>"]
 
 [dependencies]
 clap = "2.25.0"
+rand = "0.3.15"
+curl = "0.4.7"
+easy-hash = "0.1.0"

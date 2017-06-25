@@ -6,10 +6,10 @@ extern crate easy_hash;
 #[cfg(windows)] extern crate user32;
 
 use std::io::{Read, Error, ErrorKind, Write};
-use std::fs::{create_dir, rename, read_dir};
+use std::fs::{create_dir_all, rename, read_dir};
 use std::fs::File;
 use clap::{Arg, App};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use rand::{thread_rng, Rng};
 use curl::easy::Easy;
 use easy_hash::{Sha256, Hasher, HashResult};
@@ -18,11 +18,9 @@ use easy_hash::{Sha256, Hasher, HashResult};
 #[cfg(windows)] use std::os::raw::c_void;
 #[cfg(not(windows))] use std::process::Command;
 
-fn load_urls_from_file(path: &str) -> std::io::Result<Vec<String>> {
+fn load_urls_from_file(path: &Path) -> std::io::Result<Vec<String>> {
     /* First, we will open the path given to us */
-    let path = std::path::Path::new(path);
-
-    let mut file = match File::open(&path) {
+    let mut file = match File::open(path) {
         Err(why) => return Err(why),
         Ok(file) => file
     };
@@ -31,7 +29,7 @@ fn load_urls_from_file(path: &str) -> std::io::Result<Vec<String>> {
     file.read_to_string(&mut s)?;
 
     let mut url_list = Vec::new();
-    for url in s.split_whitespace() {
+    for url in s.lines() {
         url_list.push(url.to_owned());
     }
 
@@ -39,9 +37,7 @@ fn load_urls_from_file(path: &str) -> std::io::Result<Vec<String>> {
 }
 
 fn get_filenames_in_dir(path: &Path) -> std::io::Result<Vec<String>> {
-    if !path.exists() {
-        create_dir(path)?;
-    }
+    create_dir_all(path)?;
 
     let filenames = match read_dir(path) {
         Err(why) => return Err(why),
@@ -62,6 +58,36 @@ fn get_filenames_in_dir(path: &Path) -> std::io::Result<Vec<String>> {
     }
 
     Ok(path_list)
+}
+
+fn get_default_config_path(filename: &Path, is_dir: bool) -> Option<PathBuf> {
+    let home_dir = std::env::home_dir();
+    match home_dir {
+        None => None,
+        Some(mut dir) => {
+            dir.push(".config");
+            dir.push("wallers");
+
+            if !is_dir {
+                if let Err(_) = create_dir_all(dir.as_path()) {
+                    return None;
+                }
+            }
+
+            dir.push(filename);
+
+            if is_dir {
+                if let Err(_) = create_dir_all(dir.as_path()) {
+                    return None;
+                }
+            }
+
+            match dir.as_path().exists() {
+                false => None,
+                true => Some(dir)
+            }
+        }
+    }
 }
 
 fn get_url_hash(url: &str) -> String {
@@ -142,24 +168,27 @@ fn set_wallpaper(path: &Path, force_32bit: bool, feh_path: &str) -> std::io::Res
 }
 
 fn main() {
+    let default_urlfile_path = get_default_config_path(Path::new("urls.txt"), false);
+    let default_imagedir_path = get_default_config_path(Path::new("images"), true);
+
     let matches = App::new("wallers")
-        .version("0.1.1")
+        .version("0.1.2")
         .about("A wallpaper setter and getter")
         .author("brandonio21")
         .arg(Arg::with_name("urlfile")
             .short("u")
             .long("urlfile")
             .value_name("URLFILE")
-            .help("Path to file with list of newline delineated URLs")
+            .help("File which contains the list of URLs")
             .takes_value(true)
-            .required(true))
+            .required(default_urlfile_path.is_none()))
         .arg(Arg::with_name("imagedir")
             .short("d")
             .long("imagedir")
             .value_name("IMAGEDIR")
-            .help("Path to directory to store downloaded images")
+            .help("Path where downloaded images will be stored")
             .takes_value(true)
-            .required(true))
+            .required(default_imagedir_path.is_none()))
         .arg(Arg::with_name("force32bit")
             .short("A")
             .long("force32bit")
@@ -172,18 +201,26 @@ fn main() {
             .takes_value(true))
         .get_matches();
 
-    let urlfile = matches.value_of("urlfile").unwrap();
-    let imagedir = Path::new(matches.value_of("imagedir").unwrap());
-    let force32bit = matches.is_present("force32bit");
+    let urlfile = match matches.value_of("urlfile") {
+        Some(path) => Path::new(path).to_path_buf(),
+        None => default_urlfile_path.unwrap()
+    };
+
+    let imagedir = match matches.value_of("imagedir") {
+        Some(path) => Path::new(path).to_path_buf(),
+        None => default_imagedir_path.unwrap()
+    };
 
     let fehpath = match matches.value_of("fehpath") {
         Some(path) => path,
         None => "feh"
     };
 
+    let force32bit = matches.is_present("force32bit");
+
     /* Step 1: Load all URLs from the URLs file */
-    let urls = match load_urls_from_file(&urlfile) {
-        Err(why) => panic!("Error loading URLS from file {} : {}", urlfile, why),
+    let urls = match load_urls_from_file(urlfile.as_path()) {
+        Err(why) => panic!("Error loading URLS from file {} : {}", urlfile.to_str().unwrap(), why),
         Ok(urls) => urls
     };
 

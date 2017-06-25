@@ -1,6 +1,6 @@
 [package]
 name = "wallers"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Brandon Milton <brandon.milton21@gmail.com>"]
 
 [dependencies]

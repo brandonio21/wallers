@@ -4,6 +4,13 @@ A Rust implementation of [wallepy](https://github.com/brandonio21/wallepy).
 Define wallpapers as a list of URLs which wallers will keep track of and randomly
 select a wallpaper to download and set.
 
+Dependencies
+------------
+* Rust
+
+For Linux Users,
+* feh
+
 Workflow
 --------
 wallers will select either a locally downloaded image or a URL to set as the wallpaper.

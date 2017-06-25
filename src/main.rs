@@ -6,7 +6,7 @@ extern crate easy_hash;
 #[cfg(windows)] extern crate user32;
 
 use std::io::{Read, Error, ErrorKind, Write};
-use std::fs::{create_dir_all, rename, read_dir};
+use std::fs::{create_dir_all, rename, read_dir, remove_file};
 use std::fs::File;
 use clap::{Arg, App};
 use std::path::{Path, PathBuf};
@@ -38,19 +38,22 @@ fn load_urls_from_file(path: &Path) -> std::io::Result<Vec<String>> {
 
 fn get_filenames_in_dir(path: &Path) -> std::io::Result<Vec<String>> {
     create_dir_all(path)?;
-
-    let filenames = match read_dir(path) {
-        Err(why) => return Err(why),
-        Ok(entry) => entry
-    };
+    let filenames = read_dir(path)?;
 
     let mut path_list = Vec::new();
     for filename in filenames {
         let str_filename = match filename {
             Err(why) => return Err(why),
-            Ok(entry) => match entry.file_name().into_string() {
-                Err(_) => return Err(Error::new(ErrorKind::Other, "Uninterpretable filename")),
-                Ok(converted_str) => converted_str
+            Ok(entry) => {
+                if let Some(_) = entry.path().extension() {
+                    remove_file(entry.path().as_path())?;
+                    continue;
+                }
+
+                match entry.file_name().into_string() {
+                    Err(_) => return Err(Error::new(ErrorKind::Other, "Uninterpretable filename")),
+                    Ok(converted_str) => converted_str
+                }
             }
         };
 

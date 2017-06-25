@@ -1,6 +1,6 @@
 [root]
 name = "wallers"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap 2.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "curl 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",

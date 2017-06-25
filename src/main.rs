@@ -45,9 +45,14 @@ fn get_filenames_in_dir(path: &Path) -> std::io::Result<Vec<String>> {
         let str_filename = match filename {
             Err(why) => return Err(why),
             Ok(entry) => {
-                if let Some(_) = entry.path().extension() {
-                    remove_file(entry.path().as_path())?;
-                    continue;
+                if let Some(ext_os_str) = entry.path().extension() {
+                    match ext_os_str.to_str() {
+                        Some("download") => {
+                            remove_file(entry.path().as_path())?;
+                            continue;
+                        },
+                        _ => {}
+                    }
                 }
 
                 match entry.file_name().into_string() {
@@ -175,7 +180,7 @@ fn main() {
     let default_imagedir_path = get_default_config_path(Path::new("images"), true);
 
     let matches = App::new("wallers")
-        .version("0.1.2")
+        .version("0.1.3")
         .about("A wallpaper setter and getter")
         .author("brandonio21")
         .arg(Arg::with_name("urlfile")
